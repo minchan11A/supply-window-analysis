@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 실제 기상청 원본 CSV는 용량·민감도 이유로 제외 (합성 데모 산출물은 추적함)
+data/raw/*.csv
+!data/raw/.gitkeep
+
+.venv/
+venv/
