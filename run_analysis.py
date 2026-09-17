@@ -4,6 +4,7 @@
 사용법:
   실데이터: python run_analysis.py --csv data/raw/실제파일.csv --station "○○관측소"
   합성데이터(데모): python run_analysis.py --demo
+  추론·민감도 포함 전체: python run_analysis.py --dir data/raw --full
 
 3단계 분석을 순서대로 실행하고, 그래프 4종 + 요약 리포트를 outputs/에 저장합니다.
 """
@@ -26,7 +27,14 @@ from src.prescriptive import recommend_safety_stock_days, supply_window_recommen
 from src.visualize import (
     plot_monthly_heatmap, plot_annual_isolation_trend,
     plot_isolation_calendar, plot_limiting_factor_breakdown,
+    plot_sensitivity, plot_return_level, plot_terrain_sensitivity,
 )
+from src.inference import (
+    isolation_persistence, event_frequency_model, return_level_analysis,
+    bootstrap_percentile_ci, mann_kendall_trend, mode_dependence,
+    terrain_representativeness,
+)
+from src.sensitivity import run_sensitivity, run_threshold_sweep
 
 
 def main():
@@ -35,6 +43,9 @@ def main():
     parser.add_argument("--dir", type=str, help="연도별 CSV가 들어있는 폴더 (예: data/raw)")
     parser.add_argument("--station", type=str, default="", help="관측소/부대 이름 (그래프 제목용)")
     parser.add_argument("--demo", action="store_true", help="합성 데이터로 데모 실행")
+    parser.add_argument("--full", action="store_true",
+                        help="통계적 추론(4단계)·민감도 분석(5단계)까지 실행 "
+                             "(그래프 05~07 및 추가 CSV 생성)")
     args = parser.parse_args()
 
     print("=" * 60)
@@ -122,6 +133,48 @@ def main():
     breakdown.to_csv(out_dir / "limiting_factor_breakdown.csv", index=False, encoding="utf-8-sig")
     seasonal_concentration.to_csv(out_dir / "seasonal_concentration.csv", encoding="utf-8-sig")
 
+    # ── 4~5단계: 통계적 추론 · 민감도 (--full 일 때만) ──
+    inference_report = None
+    if args.full:
+        print("\n[4/5] 4단계 — 통계적 추론(Inference) 계산 중...")
+        persistence = isolation_persistence(daily)
+        freq_model = event_frequency_model(daily)
+        returns = return_level_analysis(daily)
+        boot = bootstrap_percentile_ci(daily)
+        trend = mann_kendall_trend(daily)
+        dep = mode_dependence(daily)
+        terrain = terrain_representativeness(raw)
+
+        print(f"      지속확률 p = {persistence['지속확률_p']}")
+        print(f"      λ(연평균 사건수) = {freq_model['λ_연평균사건수']}, "
+              f"과산포지수 = {freq_model['과산포지수']}")
+        if "재현수준" in returns:
+            print(f"      재현수준: {returns['재현수준']}")
+        print(f"      Mann-Kendall 추세 p값 = {trend['p값']}")
+
+        print("\n[5/5] 5단계 — 민감도 분석(Sensitivity) 계산 중...")
+        sens = run_sensitivity(raw)
+        sweep = run_threshold_sweep(raw, mode="선박")
+
+        print("      [그래프] 05~07 생성 중...")
+        for f in (plot_sensitivity(sens),
+                  plot_return_level(returns, safety["권고_안전재고_일수"]),
+                  plot_terrain_sensitivity(terrain)):
+            print(f"      저장됨: {f}")
+
+        dep.to_csv(out_dir / "mode_dependence.csv", index=False, encoding="utf-8-sig")
+        terrain.to_csv(out_dir / "terrain_representativeness.csv", index=False, encoding="utf-8-sig")
+        sens.to_csv(out_dir / "sensitivity_scenarios.csv", index=False, encoding="utf-8-sig")
+        sweep.to_csv(out_dir / "threshold_sweep_ship.csv", index=False, encoding="utf-8-sig")
+
+        inference_report = {
+            "지속성_Markov": persistence,
+            "사건빈도_Poisson": freq_model,
+            "재현수준_복합포아송기하": returns,
+            "부트스트랩_신뢰구간": boot,
+            "추세검정_MannKendall": trend,
+        }
+
     report = {
         "station": station_name,
         "summary_stage1": summary,
@@ -129,6 +182,8 @@ def main():
         "example_recommendation": example,
         "topography_disclaimer": station_topography_note(),
     }
+    if inference_report is not None:
+        report["inference_stage4"] = inference_report
     with open(out_dir / "analysis_report.json", "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2, default=str)
 

@@ -48,7 +48,14 @@ python run_analysis.py --demo --station "가상_서해5도_관측소"
 
 # 실제 기상청 CSV로 실행 (아래 "실데이터 연결" 참고)
 python run_analysis.py --csv data/raw/실제파일.csv --station "○○부대"
+
+# 연도별 CSV 폴더 + 통계적 추론(4단계)·민감도(5단계)까지 전체 실행
+#   → 그래프 05~07 및 추론/민감도 CSV가 추가로 생성됩니다
+python run_analysis.py --dir data/raw --station "백령도" --full
 ```
+
+> `--full` 없이 실행하면 1~3단계와 그래프 4종만 생성됩니다.
+> 저장소에 커밋된 `outputs/`는 백령도 실측자료(2016~2025)에 `--full`을 적용한 결과입니다.
 
 실행하면 `outputs/` 아래에 다음이 생성됩니다.
 
@@ -124,10 +131,16 @@ supply-window-analysis/
 │   ├── descriptive.py        1단계: 기술통계
 │   ├── diagnostic.py         2단계: 진단적 분석
 │   ├── prescriptive.py       3단계: 처방적 로직 (안전재고 산정)
-│   └── visualize.py          4종 그래프 생성
+│   ├── inference.py          4단계: 통계적 추론 (Markov 지속성, Poisson 빈도,
+│   │                                 복합 포아송-기하 재현수준, 부트스트랩 CI,
+│   │                                 Mann-Kendall 추세, φ계수 수단독립성 검정)
+│   ├── sensitivity.py        5단계: 임계값 민감도 · 시나리오 분석
+│   └── visualize.py          그래프 7종 생성
 ├── tests/
 │   └── test_pipeline.py      pytest 유닛테스트 8종
-├── data/raw/                 (실제 CSV를 여기에 넣으세요)
+├── ANALYSIS_METHOD.md       분석방법 상세 설명서
+├── proposal.md              정책 제안서
+├── data/raw/                 (실제 CSV를 여기에 넣으세요 — 원본은 .gitignore 처리)
 ├── outputs/                  분석 결과 (CSV/JSON/그래프)
 └── requirements.txt
 ```
