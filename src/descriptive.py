@@ -34,23 +34,40 @@ def compute_hourly_operability(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def compute_daily_operability(hourly_df: pd.DataFrame) -> pd.DataFrame:
+def compute_daily_operability(hourly_df: pd.DataFrame,
+                                min_coverage_hours: int = 18) -> pd.DataFrame:
     """
     시간자료 → 일자료로 집계.
     '운용가능일' 정의: 해당 수단의 운용가능 시간대 합이
                       MIN_OPERATIONAL_WINDOW_HOURS 이상인 날 = 1
+
+    ⚠ 관측 커버리지 필터 (중요):
+       하루 24시간 중 관측 레코드가 min_coverage_hours 미만인 날은
+       분석에서 제외합니다. 기상자료개방포털에서 연도별로 나눠 받으면
+       각 파일이 '01-01 01:00 ~ 12-31 00:00'으로 끝나 12월 31일에
+       관측치가 1시간만 존재하게 되는데, 이를 그대로 두면
+       기상과 무관하게 '운용불가일'로 오판정됩니다.
+       (실제로 필터 적용 전 고립사건 22건 중 10건이 이 인공 산물이었음)
     """
     df = hourly_df.copy()
     df["date"] = df["datetime"].dt.date
 
     records = []
+    excluded = 0
     for date, g in df.groupby("date"):
-        row = {"date": date}
+        if len(g) < min_coverage_hours:
+            excluded += 1
+            continue
+        row = {"date": date, "n_obs_hours": len(g)}
         for mode in THRESHOLDS:
             hours_ok = g[f"op_{mode}"].sum()
             row[f"opday_{mode}"] = int(hours_ok >= MIN_OPERATIONAL_WINDOW_HOURS)
             row[f"hours_ok_{mode}"] = int(hours_ok)
         records.append(row)
+
+    if excluded:
+        print(f"      [전처리] 관측 커버리지 부족({min_coverage_hours}시간 미만)으로 "
+              f"{excluded}일 제외")
 
     daily = pd.DataFrame(records)
     daily["date"] = pd.to_datetime(daily["date"])

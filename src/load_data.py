@@ -17,27 +17,31 @@ import numpy as np
 from pathlib import Path
 
 # 기상청 CSV 원본 컬럼명 → 내부 표준 컬럼명 매핑
-# (실제 다운로드한 CSV의 헤더를 열어보고 좌측 값을 맞춰주세요)
+# 2026년 기준 기상자료개방포털 ASOS 시간자료 실제 헤더에 맞춰 설정됨:
+#   지점,지점명,일시,기온(°C),강수량(mm),풍속(m/s),풍향(16방위),습도(%),시정(10m)
 COLUMN_MAP = {
     "일시": "datetime",
+    "지점명": "station",
     "풍속(m/s)": "wind_mps",
-    "풍속(m·s^-1)": "wind_mps",
-    "최대순간풍속(m/s)": "gust_mps",
+    "풍속(m·s^-1)": "wind_mps",          # 포털 버전에 따른 표기 변형
+    "최대순간풍속(m/s)": "gust_mps",      # 제공되지 않는 지점이 많음(선택)
     "최대순간풍속(m·s^-1)": "gust_mps",
     "시정(10m)": "visibility_10m",
     "강수량(mm)": "precip_mm",
-    "지점명": "station",
+    "기온(°C)": "temp_c",
+    "풍향(16방위)": "wind_dir",
+    "습도(%)": "humidity",
 }
 
 
 def load_kma_csv(filepath: str) -> pd.DataFrame:
     """
-    기상청 시간자료 CSV를 표준 스키마로 로드.
+    기상청 시간자료 CSV 한 개를 표준 스키마로 로드.
 
-    반환 컬럼: datetime, wind_mps, gust_mps, visibility_m, precip_mm, station
+    반환 컬럼: datetime, station, wind_mps, gust_mps, visibility_m, precip_mm
     """
-    # 기상청 CSV는 보통 EUC-KR 인코딩, 상단에 메타 설명 줄이 붙는 경우가 많음
-    df = pd.read_csv(filepath, encoding="cp949", skiprows=0)
+    # 기상청 CSV는 EUC-KR(cp949) 인코딩
+    df = pd.read_csv(filepath, encoding="cp949")
 
     # 컬럼명 정리 (공백 제거 후 매핑)
     df.columns = [c.strip() for c in df.columns]
@@ -61,17 +65,63 @@ def load_kma_csv(filepath: str) -> pd.DataFrame:
     elif "visibility_m" not in df.columns:
         df["visibility_m"] = np.nan
 
+    # 최대순간풍속: 다수 지점에서 미제공 → 없으면 NaN으로 두고 판정에서 자동 제외
     if "gust_mps" not in df.columns:
         df["gust_mps"] = np.nan
+
+    # ⚠ 강수량 결측 처리 주의:
+    #   기상청 ASOS 시간자료에서 강수량 공란은 '측정 실패'가 아니라
+    #   '무강수(비가 오지 않음)'를 의미합니다. 따라서 0으로 채우는 것이 옳습니다.
+    #   (이를 NaN으로 두면 운용가능 판정에서 강수 조건이 통째로 무시됨)
     if "precip_mm" not in df.columns:
         df["precip_mm"] = 0.0
+    df["precip_mm"] = df["precip_mm"].fillna(0.0)
+
     if "station" not in df.columns:
         df["station"] = "UNKNOWN"
 
-    df["precip_mm"] = df["precip_mm"].fillna(0.0)
-
     cols = ["datetime", "station", "wind_mps", "gust_mps", "visibility_m", "precip_mm"]
     return df[cols].sort_values("datetime").reset_index(drop=True)
+
+
+def load_kma_directory(dirpath: str = "data/raw", pattern: str = "*.csv") -> pd.DataFrame:
+    """
+    폴더 안의 여러 CSV(연도별로 나눠 받은 파일)를 모두 읽어 하나로 병합.
+
+    기상자료개방포털은 1회 다운로드 기간을 12개월로 제한하므로,
+    10년치를 받으려면 연도별로 나눠 받게 됩니다.
+    그 파일들을 data/raw/ 에 모두 넣어두고 이 함수를 쓰면 자동 병합됩니다.
+
+    중복 시각(파일 경계에서 겹치는 행)은 제거합니다.
+    """
+    files = sorted(Path(dirpath).glob(pattern))
+    if not files:
+        raise FileNotFoundError(
+            f"{dirpath} 에 CSV 파일이 없습니다. 기상청에서 받은 파일을 넣어주세요."
+        )
+
+    frames = []
+    for f in files:
+        try:
+            frames.append(load_kma_csv(str(f)))
+        except Exception as e:
+            print(f"  [경고] {f.name} 읽기 실패 — 건너뜁니다: {e}")
+
+    if not frames:
+        raise ValueError("읽을 수 있는 CSV가 하나도 없습니다.")
+
+    merged = pd.concat(frames, ignore_index=True)
+    before = len(merged)
+    merged = (
+        merged.drop_duplicates(subset=["datetime"])
+        .sort_values("datetime")
+        .reset_index(drop=True)
+    )
+    removed = before - len(merged)
+
+    print(f"  병합: {len(files)}개 파일 → {len(merged):,} 행"
+          f"{f' (중복 {removed}행 제거)' if removed else ''}")
+    return merged
 
 
 def generate_synthetic_data(

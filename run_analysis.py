@@ -12,7 +12,7 @@ import argparse
 import json
 from pathlib import Path
 
-from src.load_data import load_kma_csv, generate_synthetic_data
+from src.load_data import load_kma_csv, load_kma_directory, generate_synthetic_data
 from src.descriptive import (
     compute_hourly_operability, compute_daily_operability,
     mode_annual_availability, monthly_availability,
@@ -31,7 +31,8 @@ from src.visualize import (
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv", type=str, help="기상청 시간자료 CSV 경로")
+    parser.add_argument("--csv", type=str, help="기상청 시간자료 CSV 경로 (단일 파일)")
+    parser.add_argument("--dir", type=str, help="연도별 CSV가 들어있는 폴더 (예: data/raw)")
     parser.add_argument("--station", type=str, default="", help="관측소/부대 이름 (그래프 제목용)")
     parser.add_argument("--demo", action="store_true", help="합성 데이터로 데모 실행")
     args = parser.parse_args()
@@ -41,14 +42,18 @@ def main():
     print("=" * 60)
 
     # ── 0. 데이터 로드 ──
-    if args.demo or not args.csv:
-        print("\n[0/3] 합성(가상) 데이터 생성 중... (⚠ 데모 전용, 실제 CSV로 교체 필요)")
-        raw = generate_synthetic_data()
-        station_name = args.station or "가상_도서관측소(데모)"
-    else:
+    if args.dir:
+        print(f"\n[0/3] 폴더 내 CSV 병합 로드 중: {args.dir}")
+        raw = load_kma_directory(args.dir)
+        station_name = args.station or raw["station"].iloc[0]
+    elif args.csv:
         print(f"\n[0/3] 실데이터 로드 중: {args.csv}")
         raw = load_kma_csv(args.csv)
         station_name = args.station or raw["station"].iloc[0]
+    else:
+        print("\n[0/3] 합성(가상) 데이터 생성 중... (⚠ 데모 전용, 실제 CSV로 교체 필요)")
+        raw = generate_synthetic_data()
+        station_name = args.station or "가상_도서관측소(데모)"
 
     print(f"      기간: {raw['datetime'].min()} ~ {raw['datetime'].max()} "
           f"({len(raw):,} 시간 레코드)")

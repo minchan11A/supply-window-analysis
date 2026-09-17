@@ -129,3 +129,34 @@ def plot_limiting_factor_breakdown(breakdown_df: pd.DataFrame) -> Path:
     fig.savefig(out, dpi=150)
     plt.close(fig)
     return out
+
+
+def plot_sensitivity(sens_df: pd.DataFrame) -> Path:
+    """5) 민감도 분석 — 시나리오별 원인 기여도 (결론 강건성 입증)"""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 4.2))
+
+    x = np.arange(len(sens_df))
+    w = 0.38
+    ax1.bar(x - w/2, sens_df["선박_시정기인%"], w, label="시정 불량", color="#2c7fb8")
+    ax1.bar(x + w/2, sens_df["선박_풍속기인%"], w, label="풍속 초과", color="#e07b39")
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(sens_df["시나리오"], rotation=20, ha="right", fontsize=8)
+    ax1.set_ylabel("선박 운용불가 원인 기여도 (%)")
+    ax1.set_title("임계값을 바꿔도 시정이 지배적 제약")
+    ax1.legend()
+    ax1.set_ylim(0, 105)
+
+    ax2.bar(x, sens_df["권고안전재고"], color="#3b6ea5")
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(sens_df["시나리오"], rotation=20, ha="right", fontsize=8)
+    ax2.set_ylabel("권고 안전재고 (일분)")
+    ax2.set_title("권고 안전재고의 강건성")
+    ax2.set_ylim(0, max(sens_df["권고안전재고"]) + 2)
+    for i, v in enumerate(sens_df["권고안전재고"]):
+        ax2.text(i, v + 0.1, str(v), ha="center", fontsize=10)
+
+    fig.tight_layout()
+    out = FIG_DIR / "05_sensitivity_analysis.png"
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
