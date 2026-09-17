@@ -113,12 +113,15 @@ def main():
     print(f"      예시 시나리오 판정: {example['판정']}")
 
     # ── 그래프 생성 ──
-    print("\n[그래프] 4종 그래프 생성 중...")
+    print("\n[그래프] 기본 그래프 생성 중...")
     figs = []
     figs.append(plot_monthly_heatmap(seasonal_table, station_name))
     figs.append(plot_annual_isolation_trend(per_year_iso, safety["권고_안전재고_일수"]))
-    demo_year = int(per_year_iso.loc[per_year_iso["max_isolation_days"].idxmax(), "year"])
-    figs.append(plot_isolation_calendar(daily, demo_year))
+    # 캘린더는 2종: 최악 연도 + 최근 연도 (대비를 보여주기 위함)
+    worst_year = int(per_year_iso.loc[per_year_iso["max_isolation_days"].idxmax(), "year"])
+    latest_year = int(per_year_iso["year"].max())
+    for yr in dict.fromkeys([worst_year, latest_year]):
+        figs.append(plot_isolation_calendar(daily, yr))
     figs.append(plot_limiting_factor_breakdown(breakdown))
     for f in figs:
         print(f"      저장됨: {f}")

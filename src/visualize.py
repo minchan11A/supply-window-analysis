@@ -12,21 +12,61 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
+import matplotlib.ticker as ticker
 import seaborn as sns
 import pandas as pd
 import numpy as np
+import warnings
 from pathlib import Path
 
-# 한글 폰트 설정 (Noto Sans CJK KR — 컨테이너에 설치되어 있음)
-KOREAN_FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-try:
-    fm.fontManager.addfont(KOREAN_FONT_PATH)
-    # matplotlib only registers the first face of a .ttc collection;
-    # for this Noto Sans CJK Regular file that face resolves to "Noto Sans CJK JP",
-    # which still contains full Hangul coverage, so it renders Korean correctly.
-    plt.rcParams["font.family"] = "Noto Sans CJK JP"
-except Exception:
-    pass
+# ── 한글 폰트 설정 ──────────────────────────────────────────
+# 환경마다 설치된 한글 폰트가 다르므로 고정 경로에 의존하지 않는다.
+# 후보를 순서대로 시도하고, 하나도 없으면 조용히 넘어가지 말고 경고한다.
+# (조용히 실패하면 그래프의 한글이 모두 □ 로 깨진 채 생성된다.)
+_FONT_CANDIDATES = [
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJKkr-Regular.otf",
+    "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+    "/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf",
+    "/Library/Fonts/AppleGothic.ttf",            # macOS
+    "C:/Windows/Fonts/malgun.ttf",               # Windows
+]
+
+
+def _setup_korean_font() -> str | None:
+    """사용 가능한 한글 폰트를 찾아 matplotlib 기본 폰트로 등록한다."""
+    # 1) 알려진 경로 탐색
+    for path in _FONT_CANDIDATES:
+        if Path(path).exists():
+            try:
+                fm.fontManager.addfont(path)
+                name = fm.FontProperties(fname=path).get_name()
+                # 한글 폰트 우선, 없는 글리프(U+2212 등)는 DejaVu Sans로 폴백.
+                # NanumGothic 등 일부 한글 폰트는 유니코드 마이너스가 없어
+                # 로그축 지수(10⁻¹)가 □로 깨진다.
+                plt.rcParams["font.family"] = [name, "DejaVu Sans"]
+                return name
+            except Exception:
+                continue
+
+    # 2) 경로에 없으면 등록된 폰트 중 한글 이름을 가진 것을 탐색
+    for keyword in ("Noto Sans CJK", "NanumGothic", "NanumBarunGothic",
+                    "Malgun Gothic", "AppleGothic", "WenQuanYi"):
+        for f in fm.fontManager.ttflist:
+            if keyword.lower() in f.name.lower():
+                plt.rcParams["font.family"] = [f.name, "DejaVu Sans"]
+                return f.name
+
+    warnings.warn(
+        "한글 폰트를 찾지 못했습니다. 그래프의 한글이 깨져(□) 출력됩니다.\n"
+        "  Ubuntu/Debian: sudo apt-get install -y fonts-nanum && fc-cache -f\n"
+        "  macOS/Windows: 시스템 기본 한글 폰트가 자동 탐지됩니다.",
+        RuntimeWarning, stacklevel=2,
+    )
+    return None
+
+
+KOREAN_FONT = _setup_korean_font()
 plt.rcParams["axes.unicode_minus"] = False
 
 FIG_DIR = Path(__file__).resolve().parent.parent / "outputs" / "figures"
@@ -183,6 +223,15 @@ def plot_return_level(return_analysis: dict, recommended: int = 3) -> Path:
     ax.set_ylabel("연최대 초과확률 (로그척도)")
     ax.set_title("재현기간별 고립 수준 — 복합 포아송-기하 모형")
     ax.set_xticks(days)
+
+    # 로그축 기본 눈금은 mathtext(10^{-1})로 그려지는데, 일부 한글 폰트에는
+    # 유니코드 마이너스(U+2212)가 없어 지수가 □로 깨진다.
+    # mathtext를 쓰지 않는 일반 소수 표기로 고정해 환경에 관계없이 안전하게 만든다.
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(
+        lambda y, _: ("0" if y == 0 else
+                      f"{y:.10f}".rstrip("0").rstrip(".") if y < 1 else f"{y:g}")))
+    ax.yaxis.set_minor_formatter(ticker.NullFormatter())
+
     ax.grid(alpha=0.25, which="both")
     fig.tight_layout()
     out = FIG_DIR / "06_return_level.png"
