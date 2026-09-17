@@ -160,3 +160,62 @@ def plot_sensitivity(sens_df: pd.DataFrame) -> Path:
     fig.savefig(out, dpi=150)
     plt.close(fig)
     return out
+
+
+def plot_return_level(return_analysis: dict, recommended: int = 3) -> Path:
+    """6) 재현기간별 고립일수 (복합 포아송-기하 모형)"""
+    curve = return_analysis["초과확률곡선"]
+    days = [c["고립일수"] for c in curve]
+    probs = [c["초과확률"] for c in curve]
+
+    fig, ax = plt.subplots(figsize=(7.2, 3.9))
+    ax.semilogy(days, probs, marker="o", color="#0b3d91", linewidth=2, markersize=7)
+
+    for T, style in [(5, ":"), (20, "--"), (50, "-.")]:
+        ax.axhline(1/T, color="#999", linestyle=style, linewidth=1)
+        ax.text(days[-1], 1/T, f" {T}년", va="center", fontsize=8, color="#666")
+
+    ax.axvline(recommended, color="crimson", linestyle="--", linewidth=1.6)
+    ax.text(recommended, probs[0], f" 권고 {recommended}일분", color="crimson",
+            fontsize=9, va="top", ha="left")
+
+    ax.set_xlabel("연속 고립일수 (일)")
+    ax.set_ylabel("연최대 초과확률 (로그척도)")
+    ax.set_title("재현기간별 고립 수준 — 복합 포아송-기하 모형")
+    ax.set_xticks(days)
+    ax.grid(alpha=0.25, which="both")
+    fig.tight_layout()
+    out = FIG_DIR / "06_return_level.png"
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
+def plot_terrain_sensitivity(terr_df: pd.DataFrame) -> Path:
+    """7) 지형 대표성 민감도 — 부대 풍속이 관측소보다 높다면?"""
+    fig, ax = plt.subplots(figsize=(7.2, 3.7))
+    x = np.arange(len(terr_df))
+
+    ax.plot(x, terr_df["가용률_드론"], marker="o", color="#e07b39",
+            linewidth=2.2, label="드론", markersize=7)
+    ax.plot(x, terr_df["가용률_선박"], marker="s", color="#2c7fb8",
+            linewidth=2.2, label="선박", markersize=6)
+    ax.plot(x, terr_df["가용률_헬기"], marker="^", color="#5aa469",
+            linewidth=2.2, label="헬기", markersize=6)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(terr_df["풍속_가정"], fontsize=9)
+    ax.set_ylabel("연간 가용률 (%)")
+    ax.set_title("지형 대표성 민감도 — 부대 실제 풍속이 관측소보다 높을 경우")
+    ax.legend(loc="lower left", fontsize=9)
+    ax.grid(alpha=0.25, axis="y")
+
+    for i, v in enumerate(terr_df["가용률_드론"]):
+        ax.annotate(f"{v}", (i, v), textcoords="offset points",
+                    xytext=(0, -14), ha="center", fontsize=8, color="#c2610f")
+
+    fig.tight_layout()
+    out = FIG_DIR / "07_terrain_sensitivity.png"
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
