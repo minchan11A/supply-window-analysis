@@ -330,3 +330,72 @@ def terrain_representativeness(raw_df: pd.DataFrame,
         row["최장고립일"] = int(per_year["max_isolation_days"].max())
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+# ────────────────────────────────────────────────────────────
+# 8. 재현수준의 모수 부트스트랩 신뢰구간
+# ────────────────────────────────────────────────────────────
+def return_level_ci(daily_df: pd.DataFrame, target_period: int = 20,
+                      n_boot: int = 5000, seed: int = 42) -> dict:
+    """
+    복합 포아송-기하 모형의 재현수준에 대한 모수 부트스트랩 신뢰구간.
+
+    소표본(사건 12건)에서 추정한 λ, p의 불확실성이
+    재현수준에 얼마나 전파되는지 정량화한다.
+
+    절차:
+      1) 관측된 λ, p로 가상의 10년치 사건을 재생성
+      2) 재생성 표본에서 λ*, p*를 재추정
+      3) 재추정 모수로 재현수준을 다시 계산
+      4) 1~3을 n_boot회 반복하여 분포를 얻음
+
+    → "20년 재현수준 3일"이 아니라
+      "20년 재현수준 3일 [95% CI: 2~4일]"로 정직하게 보고하기 위함.
+    """
+    pers = isolation_persistence(daily_df)
+    freq = event_frequency_model(daily_df)
+    lam0, p0 = freq["λ_연평균사건수"], pers["지속확률_p"]
+    n_years = len(freq["연도별_사건수"])
+
+    if lam0 == 0:
+        return {"오류": "고립사건 없음"}
+
+    rng = np.random.default_rng(seed)
+
+    def level_from(lam, p, T):
+        if lam <= 0:
+            return 0
+        k = 1
+        while k < 60 and (1 - np.exp(-lam * (p ** (k - 1)))) > 1 / T:
+            k += 1
+        return k
+
+    levels = []
+    for _ in range(n_boot):
+        counts = rng.poisson(lam0, size=n_years)
+        n_ev = int(counts.sum())
+        if n_ev == 0:
+            levels.append(0)
+            continue
+        durs = rng.geometric(1 - p0, size=n_ev)   # 지속일수 재생성
+        lam_b = counts.mean()
+        tot = durs.sum()
+        p_b = (tot - n_ev) / tot if tot > 0 else 0.0
+        levels.append(level_from(lam_b, p_b, target_period))
+
+    levels = np.array(levels)
+    point = level_from(lam0, p0, target_period)
+
+    return {
+        "재현기간_년": target_period,
+        "점추정": point,
+        "95%_신뢰구간": [int(np.percentile(levels, 2.5)),
+                        int(np.percentile(levels, 97.5))],
+        "부트스트랩_중앙값": int(np.median(levels)),
+        "해석": (
+            f"{target_period}년 재현수준 점추정은 {point}일이나, "
+            f"사건 표본이 작아 모수 불확실성을 반영하면 95% 신뢰구간은 "
+            f"[{int(np.percentile(levels, 2.5))}, {int(np.percentile(levels, 97.5))}]일이다. "
+            f"따라서 단일 수치가 아닌 범위로 해석해야 한다."
+        ),
+    }
