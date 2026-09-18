@@ -1,0 +1,12 @@
+{
+  "name": "supply-window-analysis",
+  "version": "1.0.0",
+  "private": true,
+  "description": "제안서 docx 생성 스크립트 의존성",
+  "scripts": {
+    "build:proposal": "node proposal_build_docx.js"
+  },
+  "dependencies": {
+    "docx": "^9.0.0"
+  }
+}

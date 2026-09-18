@@ -73,11 +73,14 @@ const tcell = (text, o = {}) => cell(
   o
 );
 
+// 그래프는 저장소의 outputs/figures/ 에서 읽는다. 환경변수 FIG_DIR로 변경 가능.
+const FIG_DIR = process.env.FIG_DIR || 'outputs/figures';
+
 const img = (file, w, h) => new Paragraph({
   alignment: AlignmentType.CENTER,
   spacing: { before: 100, after: 60 },
   children: [new ImageRun({
-    type: 'png', data: fs.readFileSync(file),
+    type: 'png', data: fs.readFileSync(`${FIG_DIR}/${file}`),
     transformation: { width: w, height: h },
   })],
 });
@@ -769,7 +772,12 @@ const doc = new Document({
   }],
 });
 
+// 출력 경로는 저장소 기준 상대경로. 환경변수 OUT_DIR로 변경 가능.
+const OUT_DIR = process.env.OUT_DIR || 'outputs';
+const OUT_PATH = `${OUT_DIR}/보급윈도우_제안서(공모서식).docx`;
+
 Packer.toBuffer(doc).then((buf) => {
-  fs.writeFileSync('/mnt/user-data/outputs/보급윈도우_제안서(공모서식).docx', buf);
-  console.log('created');
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  fs.writeFileSync(OUT_PATH, buf);
+  console.log(`created: ${OUT_PATH}`);
 });

@@ -33,7 +33,7 @@
 | 1. 기술통계 | `src/descriptive.py` | 수단별로 며칠이나 운용 가능했는가 |
 | 2. 진단 | `src/diagnostic.py` | 못 뜬 이유는 풍속인가 시정인가, 계절성은 있는가 |
 | 3. 처방 | `src/prescriptive.py` | 안전재고를 며칠분으로 잡을 것인가 |
-| 4. 추론 | `src/inference.py` | 그 숫자가 통계적으로 뒷받침되는가 |
+| 4. 추론 | `src/inference.py` | 그 숫자가 통계적으로 뒷받침되는가 (신뢰구간 포함) |
 | 5. 민감도 | `src/sensitivity.py` | 기준값을 바꿔도 결론이 유지되는가 |
 
 ---
@@ -49,6 +49,17 @@ python run_analysis.py --dir data/raw --station "백령도" --full
 `outputs/`의 모든 결과가 그대로 재현**됩니다.
 
 `--full`을 빼면 1~3단계와 그래프 4종만 생성되고 4~5단계는 건너뜁니다.
+
+### 제안서 docx 생성 (선택)
+
+`outputs/figures/`의 그래프를 삽입한 제안서 Word 파일을 만듭니다.
+
+```bash
+npm install
+npm run build:proposal    # → outputs/보급윈도우_제안서(공모서식).docx
+```
+
+분석 파이프라인과는 독립적이며, 분석 결과를 쓰지 않는다면 실행할 필요가 없습니다.
 
 ### 산출물
 
@@ -173,6 +184,7 @@ pytest tests/ -v
 ```
 supply-window-analysis/
 ├── run_analysis.py        전체 실행 스크립트
+├── proposal_build_docx.js 제안서 docx 생성 (Node, 선택)
 ├── src/
 │   ├── config.py           운용 한계기준 · 산정 상수  ← 부대별 수정 지점
 │   ├── load_data.py        기상청 CSV 로더

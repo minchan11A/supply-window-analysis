@@ -31,8 +31,8 @@ from src.visualize import (
 )
 from src.inference import (
     isolation_persistence, event_frequency_model, return_level_analysis,
-    bootstrap_percentile_ci, mann_kendall_trend, mode_dependence,
-    terrain_representativeness,
+    return_level_ci, bootstrap_percentile_ci, mann_kendall_trend,
+    mode_dependence, terrain_representativeness,
 )
 from src.sensitivity import run_sensitivity, run_threshold_sweep
 
@@ -143,6 +143,7 @@ def main():
         persistence = isolation_persistence(daily)
         freq_model = event_frequency_model(daily)
         returns = return_level_analysis(daily)
+        returns_ci = return_level_ci(daily)
         boot = bootstrap_percentile_ci(daily)
         trend = mann_kendall_trend(daily)
         dep = mode_dependence(daily)
@@ -153,6 +154,9 @@ def main():
               f"과산포지수 = {freq_model['과산포지수']}")
         if "재현수준" in returns:
             print(f"      재현수준: {returns['재현수준']}")
+        if "95%_신뢰구간" in returns_ci:
+            print(f"      {returns_ci['재현기간_년']}년 재현수준 신뢰구간: "
+                  f"{returns_ci['점추정']}일 {returns_ci['95%_신뢰구간']}")
         print(f"      Mann-Kendall 추세 p값 = {trend['p값']}")
 
         print("\n[5/5] 5단계 — 민감도 분석(Sensitivity) 계산 중...")
@@ -174,6 +178,7 @@ def main():
             "지속성_Markov": persistence,
             "사건빈도_Poisson": freq_model,
             "재현수준_복합포아송기하": returns,
+            "재현수준_신뢰구간": returns_ci,
             "부트스트랩_신뢰구간": boot,
             "추세검정_MannKendall": trend,
         }
