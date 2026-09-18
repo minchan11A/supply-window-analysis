@@ -28,11 +28,12 @@ from src.visualize import (
     plot_monthly_heatmap, plot_annual_isolation_trend,
     plot_isolation_calendar, plot_limiting_factor_breakdown,
     plot_sensitivity, plot_return_level, plot_terrain_sensitivity,
+    plot_marginal_contribution,
 )
 from src.inference import (
     isolation_persistence, event_frequency_model, return_level_analysis,
     return_level_ci, bootstrap_percentile_ci, mann_kendall_trend,
-    mode_dependence, terrain_representativeness,
+    mode_dependence, terrain_representativeness, marginal_contribution,
 )
 from src.sensitivity import run_sensitivity, run_threshold_sweep
 
@@ -148,6 +149,7 @@ def main():
         trend = mann_kendall_trend(daily)
         dep = mode_dependence(daily)
         terrain = terrain_representativeness(raw)
+        marginal = marginal_contribution(daily)
 
         print(f"      지속확률 p = {persistence['지속확률_p']}")
         print(f"      λ(연평균 사건수) = {freq_model['λ_연평균사건수']}, "
@@ -158,6 +160,10 @@ def main():
             print(f"      {returns_ci['재현기간_년']}년 재현수준 신뢰구간: "
                   f"{returns_ci['점추정']}일 {returns_ci['95%_신뢰구간']}")
         print(f"      Mann-Kendall 추세 p값 = {trend['p값']}")
+        for _m, _v in marginal.items():
+            if _v["기여율"] is not None:
+                print(f"      {_m} 한계기여율 = {_v['기여율']}% "
+                      f"(타수단 전부불가 {_v['타수단_전부불가일']}일 중 {_v['해당수단_가용일']}일)")
 
         print("\n[5/5] 5단계 — 민감도 분석(Sensitivity) 계산 중...")
         sens = run_sensitivity(raw)
@@ -166,7 +172,8 @@ def main():
         print("      [그래프] 05~07 생성 중...")
         for f in (plot_sensitivity(sens),
                   plot_return_level(returns, safety["권고_안전재고_일수"]),
-                  plot_terrain_sensitivity(terrain)):
+                  plot_terrain_sensitivity(terrain),
+                  plot_marginal_contribution(marginal)):
             print(f"      저장됨: {f}")
 
         dep.to_csv(out_dir / "mode_dependence.csv", index=False, encoding="utf-8-sig")
@@ -181,6 +188,7 @@ def main():
             "재현수준_신뢰구간": returns_ci,
             "부트스트랩_신뢰구간": boot,
             "추세검정_MannKendall": trend,
+            "한계기여도": marginal,
         }
 
     report = {

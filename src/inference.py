@@ -404,6 +404,16 @@ def return_level_ci(daily_df: pd.DataFrame, target_period: int = 20,
 # ────────────────────────────────────────────────────────────
 # 9. 수단별 한계 보완 효과 (정책적으로 올바른 방향의 상보성)
 # ────────────────────────────────────────────────────────────
+def _josa(word: str, with_batchim: str, without_batchim: str) -> str:
+    """한글 받침 유무에 따라 조사를 고른다 (예: 드론+이 / 헬기+가)."""
+    if not word:
+        return without_batchim
+    last = word[-1]
+    if not ("가" <= last <= "힣"):
+        return without_batchim
+    return with_batchim if (ord(last) - 0xAC00) % 28 else without_batchim
+
+
 def marginal_contribution(daily_df: pd.DataFrame) -> dict:
     """
     각 수단이 '다른 수단들이 모두 막힌 상황'에서 보급 창구를 얼마나 열어주는지 측정.
@@ -439,8 +449,9 @@ def marginal_contribution(daily_df: pd.DataFrame) -> dict:
             "기여율": round(rescued / n_others_bad * 100, 1),
             "잔여고립일": remaining,
             "해석": (
-                f"{'·'.join(others)}가 모두 막힌 {n_others_bad}일 중 "
-                f"{target}은(는) {rescued}일({rescued/n_others_bad*100:.1f}%)에서 운용 가능하였다. "
+                f"{'·'.join(others)}{_josa('·'.join(others), '이', '가')} 모두 막힌 "
+                f"{n_others_bad}일 중 {target}{_josa(target, '은', '는')} "
+                f"{rescued}일({rescued/n_others_bad*100:.1f}%)에서 운용 가능하였다. "
                 f"{target} 부재 시 고립일은 {n_others_bad}일이나, 포함 시 {remaining}일로 감소한다."
             ),
         }

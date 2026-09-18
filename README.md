@@ -72,7 +72,8 @@ outputs/
 │   ├── 04_limiting_factor_breakdown.png      불가 원인 분해 (풍속/시정/강수)
 │   ├── 05_sensitivity_analysis.png           기준값 변경 시나리오
 │   ├── 06_return_level.png                   재현기간별 고립 수준
-│   └── 07_terrain_sensitivity.png            관측소-부대 간 풍속 차이 가정
+│   ├── 07_terrain_sensitivity.png            관측소-부대 간 풍속 차이 가정
+│   └── 08_marginal_contribution.png          수단별 한계 보완 효과
 ├── analysis_report.json      핵심 수치 요약 (권고 안전재고 · 산정근거)
 ├── daily_operability.csv     일자별 수단별 운용가능 여부 (원자료)
 ├── annual_availability.csv   연도별 가용률
