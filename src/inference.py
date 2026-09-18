@@ -399,3 +399,49 @@ def return_level_ci(daily_df: pd.DataFrame, target_period: int = 20,
             f"따라서 단일 수치가 아닌 범위로 해석해야 한다."
         ),
     }
+
+
+# ────────────────────────────────────────────────────────────
+# 9. 수단별 한계 보완 효과 (정책적으로 올바른 방향의 상보성)
+# ────────────────────────────────────────────────────────────
+def marginal_contribution(daily_df: pd.DataFrame) -> dict:
+    """
+    각 수단이 '다른 수단들이 모두 막힌 상황'에서 보급 창구를 얼마나 열어주는지 측정.
+
+    ⚠ 방향이 중요하다:
+      (X) "드론 불가일 중 다른 수단 가능 비율" → 드론의 취약성을 반영할 뿐
+      (O) "선박·헬기 동시 불가일 중 드론 가능 비율" → 드론의 실제 기여도
+
+    전자는 불가일이 많은 수단일수록 높게 나오는 편향이 있어
+    정책 판단 근거로 부적절하다.
+    """
+    modes = ["선박", "헬기", "드론"]
+    result = {}
+
+    for target in modes:
+        others = [m for m in modes if m != target]
+        # 다른 수단이 '모두' 불가한 날
+        others_all_bad = (daily_df[[f"opday_{m}" for m in others]].sum(axis=1) == 0)
+        n_others_bad = int(others_all_bad.sum())
+
+        if n_others_bad == 0:
+            result[target] = {"타수단_전부불가일": 0, "해당수단_가용일": 0,
+                              "기여율": None, "잔여고립일": 0}
+            continue
+
+        target_ok = daily_df[f"opday_{target}"] == 1
+        rescued = int((others_all_bad & target_ok).sum())
+        remaining = n_others_bad - rescued
+
+        result[target] = {
+            "타수단_전부불가일": n_others_bad,
+            "해당수단_가용일": rescued,
+            "기여율": round(rescued / n_others_bad * 100, 1),
+            "잔여고립일": remaining,
+            "해석": (
+                f"{'·'.join(others)}가 모두 막힌 {n_others_bad}일 중 "
+                f"{target}은(는) {rescued}일({rescued/n_others_bad*100:.1f}%)에서 운용 가능하였다. "
+                f"{target} 부재 시 고립일은 {n_others_bad}일이나, 포함 시 {remaining}일로 감소한다."
+            ),
+        }
+    return result

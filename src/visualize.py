@@ -219,3 +219,37 @@ def plot_terrain_sensitivity(terr_df: pd.DataFrame) -> Path:
     fig.savefig(out, dpi=150)
     plt.close(fig)
     return out
+
+
+def plot_marginal_contribution(marg: dict) -> Path:
+    """8) 수단별 한계 보완 효과 — 타 수단이 모두 막혔을 때의 기여"""
+    modes = ["선박", "헬기", "드론"]
+    rescued = [marg[m]["해당수단_가용일"] for m in modes]
+    remaining = [marg[m]["잔여고립일"] for m in modes]
+
+    fig, ax = plt.subplots(figsize=(7.6, 3.9))
+    x = np.arange(len(modes))
+    w = 0.55
+
+    ax.bar(x, rescued, w, label="해당 수단이 보급창구를 연 날", color="#2c7fb8")
+    ax.bar(x, remaining, w, bottom=rescued, label="그래도 고립된 날", color="#d0d5db")
+
+    for i, m in enumerate(modes):
+        total = rescued[i] + remaining[i]
+        if rescued[i] > 0:
+            ax.text(i, rescued[i]/2, f"{rescued[i]}일\n({marg[m]['기여율']}%)",
+                    ha="center", va="center", color="white", fontsize=10, fontweight="bold")
+        ax.text(i, total + 0.6, f"타 수단 전부 불가 {total}일",
+                ha="center", fontsize=8.5, color="#555")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{m}" for m in modes])
+    ax.set_ylabel("일수 (10년 누적)")
+    ax.set_title("수단별 한계 보완 효과 — 다른 수단이 모두 막혔을 때")
+    ax.legend(loc="upper left", fontsize=9)
+    ax.set_ylim(0, max(r+rm for r, rm in zip(rescued, remaining)) + 5)
+    fig.tight_layout()
+    out = FIG_DIR / "08_marginal_contribution.png"
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
